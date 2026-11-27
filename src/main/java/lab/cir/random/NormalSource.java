@@ -52,11 +52,11 @@ public final class NormalSource {
         return z;
     }
 
-    static double uniform(long bits) {
+    public static double uniform(long bits) {
         return ((bits >>> 12) + 0.5) * TWO_POW_MINUS_52; // exact, in [2^-53, 1 - 2^-53]
     }
 
-    static long pathSeed(long seed, int pathIndex) {
+    public static long pathSeed(long seed, int pathIndex) {
         return mix64(seed + GOLDEN * (pathIndex + 1L));
     }
 

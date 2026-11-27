@@ -50,8 +50,15 @@ java -jar target/cir-numerical-precision-lab.jar compare config/standard.propert
 # European control cases vs closed form / Jamshidian / finite differences, Euler step series
 java -jar target/cir-numerical-precision-lab.jar european config/standard.properties valuation.paths=5000
 
-# error budget: FD Bermudan reference, Euler step series (double), precision effect for scale
+# error budget: quadrature/FD Bermudan reference, Euler step series (double), precision effect for scale
 java -jar target/cir-numerical-precision-lab.jar reference config/standard.properties simulation.paths=20000 valuation.paths=20000
+
+# accuracy of the deterministic references: quadrature settings, FD schemes, separate space/time/rMax refinement (~1.5 min)
+java -jar target/cir-numerical-precision-lab.jar fdstudy config/standard.properties
+
+# clean cluster-vs-LSM comparison: trained policies valued exactly, 40 seeds x 7 path counts x exact/Euler paths (~15 min)
+java -jar target/cir-numerical-precision-lab.jar methodstudy config/standard.properties
+# smaller: methodstudy.paths=500,4000 methodstudy.replications=8 methodstudy.sources=EXACT
 
 # one-factor series (no Cartesian products); "a+b" sets several keys to the same value
 java -jar target/cir-numerical-precision-lab.jar sensitivity config/standard.properties decimal.precision 16,20,34,50,64,100
@@ -103,7 +110,7 @@ written as full decimal strings without conversion to double.
 | package | responsibility |
 |---|---|
 | `lab.cir.model` | CIR parameters (Feller modes), cashflow schedule, Bermudan call |
-| `lab.cir.analytic` | CIR zero bond (double / BigDecimal), noncentral chi-square, zero-bond and Jamshidian coupon-bond options, finite-difference Bermudan reference |
+| `lab.cir.analytic` | CIR zero bond (double / BigDecimal), noncentral chi-square, zero-bond and Jamshidian coupon-bond options, finite-difference and quadrature Bermudan references |
 | `lab.cir.random` | AS 241 inverse normal, per-path SplitMix64 normal source (common random numbers) |
 | `lab.cir.simulation` | time grid, full-truncation Euler generators (double / BigDecimal), path data |
 | `lab.cir.numeric` | precision settings, `DecimalMath` (big-math facade), Householder QR (double / BigDecimal) |

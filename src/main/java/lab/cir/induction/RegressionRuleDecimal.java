@@ -8,6 +8,11 @@ public record RegressionRuleDecimal(RegressionVariable variable, BigDecimal[] co
         implements DateRuleDecimal {
 
     public BigDecimal predict(BigDecimal x, MathContext mc) {
+        if (coefficients.length != 3) {
+            BigDecimal s = coefficients[coefficients.length - 1];
+            for (int k = coefficients.length - 2; k >= 0; k--) s = s.multiply(x, mc).add(coefficients[k], mc);
+            return s;
+        }
         return coefficients[0].add(coefficients[1].multiply(x, mc), mc)
                 .add(coefficients[2].multiply(x.multiply(x, mc), mc), mc);
     }

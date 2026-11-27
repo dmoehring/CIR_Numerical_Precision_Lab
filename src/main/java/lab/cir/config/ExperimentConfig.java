@@ -46,6 +46,7 @@ public final class ExperimentConfig {
     public final int minPathsPerCluster;
     public final PathSelection pathSelection;
     public final RegressionVariable regressionVariable;
+    public final int basisDegree;
     public final List<ContinuationMethod> methods;
     public final PrecisionSettings precision;
     public final ZeroBondForm zeroBondForm;
@@ -77,6 +78,7 @@ public final class ExperimentConfig {
         this.minPathsPerCluster = Integer.parseInt(get(p, "cluster.minPathsPerCluster", "20"));
         this.pathSelection = PathSelection.valueOf(get(p, "continuation.pathSelection", "ALL"));
         this.regressionVariable = RegressionVariable.valueOf(get(p, "lsm.basisVariable", "SHORT_RATE"));
+        this.basisDegree = Integer.parseInt(get(p, "lsm.basisDegree", "2"));
         this.methods = Arrays.stream(get(p, "continuation.methods", "QUANTILE_CLUSTER,LEAST_SQUARES").split(","))
                 .map(String::trim).filter(s -> !s.isEmpty()).map(ContinuationMethod::valueOf).toList();
         this.precision = new PrecisionSettings(Integer.parseInt(get(p, "decimal.precision", "34")),
@@ -118,7 +120,7 @@ public final class ExperimentConfig {
 
     public InductionSettings inductionSettings(ContinuationMethod method) {
         return new InductionSettings(method, pathSelection, clusterCount, minPathsPerCluster, regressionVariable,
-                SummationMode.NAIVE);
+                SummationMode.NAIVE, basisDegree);
     }
 
     /** Sorted view of all configuration entries (for metadata files). */

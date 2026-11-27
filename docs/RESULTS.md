@@ -22,8 +22,9 @@ BigDecimal 34 digits HALF_EVEN; zero-bond form `LOG_DIFFERENCE`.
 | same with 20 000 + 20 000 paths, 40 clusters (research run) | 7.9e-14 (8.0e-12 SE) |
 | Monte Carlo standard error (1 000 / 20 000 paths) | 4.4e-2 / 9.8e-3 |
 | training-seed variation of the out-of-sample price (8 seeds, 1 000 paths) | 1.908 ... 1.917 (spread ~9e-3) |
-| method effect `V_LSM - V_Cluster`, out-of-sample (20 000 paths) | -1.7e-3 (2.3% of paths exercise on a different date) |
-| Euler/rectangle bias at 12 steps/year vs FD reference (20 000 paths, out-of-sample) | +2.3e-2 (4 steps: +7.6e-2; 252 steps: +2.1e-3) |
+| method effect `V_LSM - V_Cluster`, out-of-sample (20 000 paths, one seed, Euler model) | -1.7e-3 (2.3% of paths exercise on a different date); **not confirmed** by the exact evaluation, section 6b |
+| policy loss `V* - V(rule)`, exact valuation, 16 000 exact training paths, mean over 40 seeds | LSM degree 2 / ITM 3.6e-5, best clusters (K = 10) 2.5e-4, section 6b |
+| Euler/rectangle bias at 12 steps/year vs deterministic reference (20 000 paths, out-of-sample) | +2.3e-2 (4 steps: +7.6e-2; 252 steps: +2.1e-3) |
 | exercise decisions that differ between double and BigDecimal (34 digits), any run up to 20 000 paths | **0** |
 | cluster switches in Mode B (34 digits), any run | **0** |
 | runtime factor BigDecimal / double, end to end (JMH, 34 digits) | ~230 (16 digits: ~130, 64 digits: ~340); allocation ~1 300x |
@@ -33,7 +34,7 @@ The ordering of error sources found here is
 
 ```
 precision (1e-13)  <<  MC noise (1e-2)  ~  Euler/discretisation bias (1e-2 at 12 steps/year)
-                   ~  policy training noise (1e-2)  >  method choice cluster vs LSM (1e-3)
+                   ~  policy training noise (1e-2)  >  method choice cluster vs LSM (policy loss 1e-4..1e-3, section 6b)
 ```
 
 for this contract; i.e. hypotheses 1, 4, 5 (relative to precision) and 8 are supported, hypotheses 2 and 3 are not
@@ -137,12 +138,14 @@ dominate the MC error - but double precision is ~9 orders of magnitude away from
 Euler step series for the European at T=4 (coupled increments, same 252/year Brownian path):
 MC - Jamshidian = 1.6e-2 (4/year), 8.0e-3 (12), 5.1e-3 (36), 4.4e-3 (84), 4.0e-3 (252, z = 1.4).
 The Euler + rectangle-rule bias at 12 steps/year is thus ~4e-3..8e-3 for T = 4 and positive; the z-values around
-2-3 at 12 steps are consistent with this bias, not with a pricing error (FD and Jamshidian agree to ~1e-5).
+2-3 at 12 steps are consistent with this bias, not with a pricing error (the FD column was produced with the first,
+uniform FD scheme; FD and Jamshidian agree to ~1e-5 there, to ~1e-7 with the current default scheme, section 6a).
 
-**Bermudan vs finite differences** (`20261127-092958-036-reference-standard`): FD Bermudan price
-1.863362 (grid changes 5.2e-4, 1.1e-4, 2.7e-5, 5.5e-6 under refinement to 4000 rate intervals x 1600 steps/year).
+**Bermudan vs deterministic reference** (`20261127-092958-036-reference-standard`): the Monte Carlo prices below
+were compared with the first FD reference 1.863362 (uniform grid, 4000 x 1600). The accurate value is
+1.8633604211 (section 6a); the differences in the table change by 2e-6, below the digits shown.
 
-| steps/year | cluster out-of-sample - FD | LSM out-of-sample - FD | SE |
+| steps/year | cluster out-of-sample - reference | LSM out-of-sample - reference | SE |
 |---|---|---|---|
 | 4 | +7.6e-2 | +7.8e-2 | 1.0e-2 |
 | 12 | +2.3e-2 | +2.4e-2 | 9.8e-3 |
@@ -154,6 +157,130 @@ The Euler + rectangle-rule bias at 12 steps/year is thus ~4e-3..8e-3 for T = 4 a
 `V_dec - V_dbl` = 7.8e-14 (cluster) / 7.4e-14 (LSM). The out-of-sample price is a lower bound only for the
 *discretised* model; the positive Euler bias of the exercise values dominates the (negative) policy sub-optimality.
 The European price at e1 (1.4233) and all other Europeans are clearly below the Bermudan (1.8634).
+
+## 6a. Accuracy of the deterministic Bermudan references (`20261127-150610-637-fdstudy-standard`)
+
+Two independent deterministic methods for the continuous-time Bermudan price (log: `results/logs/fdstudy.txt`):
+
+* **Quadrature** (`CirQuadratureBermudan`): backward induction over the four exercise dates only; continuation value
+  `C_j(r) = P(e_j, e_{j+1}; r) E^{e_{j+1}}[V_{j+1}]` under the forward measure, where the transition law is exactly a
+  scaled noncentral chi-square; piecewise Chebyshev interpolant for `C_j`, adaptive Gauss-Kronrod between the kinks.
+  No time-stepping, no Euler bias.
+* **Finite differences** (`CirFiniteDifferenceBermudan`), Crank-Nicolson + Rannacher, in four variants.
+
+| quadrature settings (rMax, panels x nodes, tol) | price |
+|---|---|
+| 1.0, 32 x 12, 1e-11 (1.2 s) | 1.863360421058373 |
+| 1.0, 64 x 16, 1e-13 (standard, 5.8 s) | 1.863360421058385 |
+| 1.0, 128 x 20, 1e-13 (19 s) | 1.863360421058386 |
+| 1.5, 96 x 16, 1e-13 | 1.863360421058385 |
+| mpmath, 30 digits, independent implementation (`validation/bermudan_quadrature.py`, 24 x 15 Lobatto, 47 min) | 1.863360421058401499 |
+
+The double quadrature agrees with the 30-digit mpmath value to **1.6e-14** (Bermudan) and to 2e-15 ... 3e-14 for the
+four Europeans; the exercise boundaries agree to < 4e-16. Against the double Jamshidian closed form the European
+differences are 3e-14 ... 9e-14 - the closed form (double noncentral chi-square CDF) is the less accurate of the two.
+The mpmath value is limited by its own interpolation (24 panels x 15 nodes), which was not refined further
+(runtime); its agreement with the double code to 1.6e-14 bounds both.
+
+FD under joint refinement (rate intervals x steps/year), error against the quadrature price:
+
+| grid | uniform (first scheme) | uniform + kink smoothing | sinh grid | **sinh + smoothing (default)** |
+|---|---|---|---|---|
+| 250 x 100 | +6.6e-4 | +1.1e-3 | -2.3e-5 | +9.3e-6 |
+| 500 x 200 | +1.3e-4 | +2.6e-4 | -4.7e-6 | +2.3e-6 |
+| 1000 x 400 | +2.3e-5 | +6.6e-5 | -2.8e-6 | +5.7e-7 |
+| 2000 x 800 | **-3.6e-6** | +1.7e-5 | -3.3e-7 | +1.4e-7 |
+| 4000 x 1600 | +1.9e-6 | +4.1e-6 | -5.1e-8 | +3.6e-8 |
+| 8000 x 3200 | +4.0e-7 | +1.0e-6 | -4.6e-8 | +8.9e-9 |
+| error ratio per doubling | 4.9, 5.9, -6.4, -1.9, 4.9 | 4.05, 4.00, 4.01, 4.00, 4.00 | 4.8, 1.7, 8.4, 6.6, 1.1 | 4.04, 4.07, 4.01, 3.97, 4.00 |
+| Richardson (finest pair) - quadrature | -1.1e-7 | -3.5e-10 | -4.4e-8 | **+6.8e-12** |
+
+* **The first FD scheme did not converge monotonically**: its error changes sign between 1000 and 4000 intervals,
+  so the change between grids (5.5e-6 at the finest pair, reported earlier) was not an error bound; its actual
+  error at 4000 x 1600 was +1.9e-6. Cause: the kink of `max(C, E)` (and of the final payoff) lies at an arbitrary
+  position inside a grid cell; point sampling gives an O(dr^2) error whose constant depends on that position.
+* **Cell averaging at the kink** (the node whose dual cell contains the kink receives the cell average of
+  `max(C, E)`) restores a clean ratio of 4.00, i.e. a smooth error expansion; Richardson extrapolation then becomes
+  valid. On the uniform grid this costs accuracy at fixed size (the error is larger but regular).
+* The **sinh grid** concentrates nodes near `r0` and the exercise boundaries (0.029 ... 0.039): 30-70x smaller
+  errors, but without smoothing the convergence is again erratic.
+* With both, FD (8000 x 3200, Richardson) and quadrature agree to **7e-12** (to the mpmath value likewise 7e-12): two
+  independent methods confirm the Bermudan price to about 11 significant digits.
+
+Separate refinement (default scheme): rate grid only (6400 steps/year) gives errors +2.1e-5 ... +1.8e-8 with
+ratios 4.0; time grid only (16000 intervals) gives -1.9e-4 ... -4.1e-8 with ratios 4.0 (the last ratios 4.5/4.4
+contain the residual error of the fixed dimension). **Space and time errors have opposite signs**, which is why the
+joint refinement error is smaller than either. The `rMax` series (0.2 ... 1.0 at 4000 x 1600) changes the price by
+5e-8, but this reflects the coarser resolution near `r0` for a longer sinh grid, not truncation: the extrapolated
+value at `rMax = 0.5` already agrees with the quadrature to 7e-12.
+
+Exercise boundaries `r*_j` (exercise below): 0.029278343949, 0.031428653031, 0.034423795917 at e1..e3 and
+0.039067630129 (bond value = strike) at e4; FD (8000 x 3200) agrees to 6e-11.
+
+**Consequence for method comparisons.** The deterministic reference error (~1e-11) is now 8 orders of magnitude
+below the Monte Carlo effects of section 6, and the quadrature also delivers the exact continuation functions
+`C_j(r)` and boundaries, so a policy estimated by clusters or LSM can be valued without simulation noise
+(next step, see PLAN).
+
+## 6b. Cluster vs LSM against the exact solution (`20261127-163245-140-methodstudy-standard`)
+
+Design (METHODOLOGY 10a): 2 training-path sources (exact simulation at the exercise dates; Euler 12 steps/year)
+x 7 path counts x 40 independent training seeds x 8 estimator configurations, all configurations trained on the same
+paths; every trained rule valued exactly by quadrature (4 480 rules, 12 min on 8 threads; log
+`results/logs/methodstudy.txt`, raw and summary CSV in the run directory). `V* = 1.863360421058`, exact boundaries
+`r* = 0.029278, 0.031429, 0.034424` (e1..e3).
+
+**Policy loss `V* - V(rule)`, exact training paths**, mean over 40 seeds (standard error in parentheses):
+
+| N | CL5 | CL10 | CL20 | CL40 | LSM2 ALL | LSM2 ITM | LSM3 ITM | LSM4 ITM |
+|---|---|---|---|---|---|---|---|---|
+| 250 | 8.1e-3 (1.1e-3) | 1.0e-2 (1.4e-3) | 1.4e-2 (1.6e-3) | = CL20 * | **1.5e-3** (2.5e-4) | 2.4e-3 (4.2e-4) | 3.6e-3 (5.2e-4) | 4.9e-3 (6.6e-4) |
+| 1 000 | 3.2e-3 (4.2e-4) | 2.6e-3 (3.5e-4) | 4.7e-3 (5.5e-4) | 8.0e-3 (6.9e-4) | **4.7e-4** (7.4e-5) | 5.2e-4 (8.3e-5) | 7.2e-4 (9.6e-5) | 8.2e-4 (1.1e-4) |
+| 4 000 | 2.4e-3 (2.7e-4) | 9.2e-4 (2.0e-4) | 1.6e-3 (2.2e-4) | 2.9e-3 (3.1e-4) | 2.4e-4 (3.1e-5) | **1.4e-4** (2.3e-5) | 2.1e-4 (3.8e-5) | 2.3e-4 (3.9e-5) |
+| 16 000 | 1.9e-3 (1.0e-4) | 2.5e-4 (2.9e-5) | 3.9e-4 (4.8e-5) | 7.7e-4 (9.4e-5) | 1.5e-4 (9.7e-6) | **3.6e-5** (6.7e-6) | 4.2e-5 (5.9e-6) | 5.0e-5 (5.5e-6) |
+
+\* with at least 20 paths per cluster, 250 paths allow at most 12 clusters. Full table (also N = 500, 2 000, 8 000,
+medians, 90% quantiles, paired differences): log file.
+
+**Diagnostics at N = 16 000 (exact paths):**
+
+| | CL5 | CL10 | CL20 | CL40 | LSM2 ALL | LSM2 ITM | LSM3 ITM | LSM4 ITM |
+|---|---|---|---|---|---|---|---|---|
+| mean abs boundary error `|r^ - r*|` | 3.6e-4 | 1.8e-4 | 2.1e-4 | 2.1e-4 | 2.3e-4 | **8.3e-5** | 9.8e-5 | 1.1e-4 |
+| dates with more than one switch point | 33% | 28% | 38% | 47% | 0% | 0% | 0% | 0% |
+| RMS continuation error at `r*` | 6.9e-2 | 3.8e-2 | 4.5e-2 | 5.2e-2 | 2.7e-2 | **1.2e-2** | 1.4e-2 | 1.5e-2 |
+| paired loss difference vs LSM2 ALL | +1.8e-3 | +9.8e-5 | +2.4e-4 | +6.2e-4 | - | **-1.1e-4** (95% of seeds better) | -1.1e-4 | -9.9e-5 |
+
+**Euler training paths** (12 steps/year), N = 16 000: CL5 3.0e-3, CL10 6.4e-4, CL20 3.7e-4, CL40 6.4e-4,
+LSM2 ALL 3.3e-4, LSM2 ITM **7.1e-5**, LSM3 ITM 1.0e-4, LSM4 ITM 1.1e-4; in-sample price minus `V*` +2.6e-2 for all
+methods (the Euler bias of section 6, independent of the estimator).
+
+Findings:
+
+1. **The best LSM configuration beats the best cluster configuration at every path count**, in the mean, the median
+   and the 90% quantile, by a factor of 5-10 in the mean loss (16 000 exact paths: 2.5e-4 vs 3.6e-5).
+   The cause is visible in the diagnostics: a cluster estimate is constant over the cluster, so near the boundary it
+   averages a steep continuation function (RMS continuation error at `r*` 3x larger, best vs best). That shifts the
+   switch point, and noisy cluster means produce non-monotone exercise sets (28-47% of dates have several switch
+   points; LSM rules are thresholds).
+2. **Fixed K does not converge.** CL5 stays at ~2e-3 from 4 000 paths on (pure approximation bias); the best K grows
+   with N (K = 5 at 250-500 paths, K = 10 from 1 000; K = 20/40 are worse at every N tested). A cluster count rule
+   must therefore depend on N - and even the best K is behind LSM.
+3. **LSM estimation set:** ALL is better for small samples (N <= 500: more data, less variance; significant in the
+   paired differences), the two are equal at 1 000-2 000 paths, ITM is better from 4 000 paths. With ALL the loss saturates at ~1.5e-4 (the quadratic is fitted over the whole state range,
+   which biases it at the boundary); with ITM it keeps falling to 3.6e-5. Degrees 3 and 4 do not help here: the
+   continuation function in the in-the-money range is close to quadratic, and extra terms only add variance.
+4. **Euler training paths** roughly double the loss of the best rules (7.1e-5 vs 3.6e-5 at 16 000) - the rule is
+   trained on a slightly wrong model - but do not change the ranking.
+5. **Loss vs boundary error:** losses are roughly quadratic in the boundary error (unit test for shifted thresholds;
+   here e.g. LSM2 ITM 8e-5 boundary error / 3.6e-5 loss, CL10 1.8e-4 / 2.5e-4). This is why price comparisons are
+   insensitive: a boundary that is visibly wrong costs little price.
+6. **Earlier single-seed price comparison revisited.** The out-of-sample comparison of section 1 (one seed, 20 000
+   paths, K = 40 vs LSM2 ALL, valued by Monte Carlo in the 12-step Euler model) found the cluster policy *higher*
+   by 1.7e-3. The exact evaluation over 40 seeds shows the opposite on average (Euler paths, 16 000: CL40 loses
+   3.1e-4 more than LSM2 ALL, cluster better in only 23% of seeds). The single-seed result was within the seed
+   spread, and it measured the value in the discretised model rather than in the continuous model.
+7. All effects here (1e-5 ... 1e-2) are 8-11 orders of magnitude above the double-vs-BigDecimal effect (1e-13).
 
 ## 7. Further sensitivity results (out-of-sample, cluster, 1 000 paths unless stated)
 
@@ -236,7 +363,9 @@ Observations:
 3. Discrete amplification (flipped decisions, cluster switches, propagation) is real but needs relative errors of
    ~1e-6 or worse; in double it is not observable even with 20 000 paths and 40 clusters.
 4. Better spent effort: finer Euler grids or a better scheme (bias 2e-2 at 12 steps/year), more paths, out-of-sample
-   policies and method checks against a deterministic reference (FD), shared simulations for portfolios.
+   policies and method checks against a deterministic reference (quadrature / FD, section 6a), the choice of the
+   continuation estimator (the best LSM rule loses 5-10x less than the best quantile-cluster rule, section 6b),
+   shared simulations for portfolios.
 5. BigDecimal remains valuable as an **algorithm reference** (34 digits reproduce 100 digits to 31 digits) for
    locating double error sources - as done here - not as a production arithmetic.
 

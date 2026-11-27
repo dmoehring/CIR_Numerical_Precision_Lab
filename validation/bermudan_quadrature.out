@@ -1,0 +1,15 @@
+# mpmath 1.4.1, 30 digits; panels 24 x 15 Lobatto nodes on [0, 0.6]
+# density check: mass - 1 = 0.0, tower P(0,1)E[P(1,3)] - P(0,3) = 3.94e-31
+european e1 1.42326262615479430231775
+european e2 1.204283072091742097382297
+european e3 0.9216524190233258561398307
+european e4 0.5469754431166606041608349
+#   date e3: continuation interpolant built in 58 s
+#   date e2: continuation interpolant built in 1269 s
+#   date e1: continuation interpolant built in 1498 s
+bermudan 1.863360421058401498799293
+boundary e1 0.029278343948666951475
+boundary e2 0.031428653030910336236
+boundary e3 0.034423795916528760388
+boundary e4 0.039067630128590246319
+# Bermudan runtime 2828 s

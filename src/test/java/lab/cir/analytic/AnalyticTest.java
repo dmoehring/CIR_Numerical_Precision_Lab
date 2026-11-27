@@ -128,6 +128,14 @@ class AnalyticTest {
     }
 
     @Test
+    void noncentralChiSquareDensityMatchesReference() {
+        for (double[] r : ReferenceValues.NONCENTRAL_CHI2_DENSITY) {
+            double v = NoncentralChiSquared.density(r[0], r[1], r[2]);
+            assertEquals(r[3], v, 2e-14 * r[3], java.util.Arrays.toString(r));
+        }
+    }
+
+    @Test
     void finiteDifferenceEuropeanMatchesJamshidianAndBermudanDominates() {
         CirParameters p = TestFixtures.model();
         BermudanCallOption berm = TestFixtures.bermudan();
@@ -137,8 +145,49 @@ class AnalyticTest {
         for (int j = 0; j < berm.exerciseDateCount(); j++) {
             double eu = fd.price(berm.europeanAt(j), 1000, 400).price();
             double ref = a.europeanCall(berm.europeanAt(j));
-            assertEquals(ref, eu, 2e-4, "FD European vs Jamshidian at e" + (j + 1));
+            assertEquals(ref, eu, 2e-6, "FD European vs Jamshidian at e" + (j + 1));
             assertTrue(bermudan >= eu - 1e-9, "Bermudan >= European at an exercise date");
         }
+    }
+
+    @Test
+    void quadratureEuropeanMatchesJamshidian() {
+        CirParameters p = TestFixtures.model();
+        BermudanCallOption berm = TestFixtures.bermudan();
+        CirQuadratureBermudan q = new CirQuadratureBermudan(p);
+        CirBondOptionAnalytic a = new CirBondOptionAnalytic(p);
+        CirQuadratureBermudan.Settings fast = new CirQuadratureBermudan.Settings(1.0, 32, 12, 1e-11);
+        for (int j = 0; j < berm.exerciseDateCount(); j++) {
+            double v = q.price(berm.europeanAt(j), fast).price();
+            assertEquals(a.europeanCall(berm.europeanAt(j)), v, 2e-13, "quadrature European at e" + (j + 1));
+        }
+    }
+
+    @Test
+    void quadratureBermudanMatchesHighPrecisionReference() {
+        double ref = new BigDecimal(ReferenceValues.BERMUDAN_STANDARD).doubleValue();
+        CirQuadratureBermudan q = new CirQuadratureBermudan(TestFixtures.model());
+        double coarse = q.price(TestFixtures.bermudan(), new CirQuadratureBermudan.Settings(1.0, 32, 12, 1e-11)).price();
+        assertEquals(ref, coarse, 1e-12, "quadrature (32 panels x 12) vs 30-digit mpmath reference");
+    }
+
+    /**
+     * With kink smoothing the default FD scheme converges with clean second order (error ratio 4 per doubling of rate
+     * and time grid), so Richardson extrapolation is valid and agrees with the 30-digit reference.
+     */
+    @Test
+    void finiteDifferenceConvergesWithSecondOrderToReference() {
+        double ref = new BigDecimal(ReferenceValues.BERMUDAN_STANDARD).doubleValue();
+        CirFiniteDifferenceBermudan fd = new CirFiniteDifferenceBermudan(TestFixtures.model());
+        BermudanCallOption berm = TestFixtures.bermudan();
+        double p1 = fd.price(berm, 500, 200).price();
+        double p2 = fd.price(berm, 1000, 400).price();
+        double p3 = fd.price(berm, 2000, 800).price();
+        double ratio = (p1 - ref) / (p2 - ref);
+        double ratio2 = (p2 - ref) / (p3 - ref);
+        assertEquals(4.0, ratio, 0.15, "error ratio 500 -> 1000");
+        assertEquals(4.0, ratio2, 0.15, "error ratio 1000 -> 2000");
+        assertEquals(ref, p3 + (p3 - p2) / 3.0, 2e-9, "Richardson extrapolation");
+        assertEquals(ref, p3, 2e-7, "FD 2000 x 800");
     }
 }

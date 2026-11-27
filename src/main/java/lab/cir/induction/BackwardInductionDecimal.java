@@ -132,20 +132,23 @@ public final class BackwardInductionDecimal {
         int[] eligible = ts.eligible(j);
         int n = eligible.length;
         BigDecimal[] beta;
-        if (n < 3) {
+        int terms = s.basisDegree() + 1;
+        if (n < terms) {
             BigDecimal sum = BigDecimal.ZERO;
             for (int p : eligible) sum = sum.add(target[p], mc);
-            beta = new BigDecimal[]{n == 0 ? BigDecimal.ZERO : sum.divide(BigDecimal.valueOf(n), mc),
-                    BigDecimal.ZERO, BigDecimal.ZERO};
+            beta = new BigDecimal[terms];
+            java.util.Arrays.fill(beta, BigDecimal.ZERO);
+            beta[0] = n == 0 ? BigDecimal.ZERO : sum.divide(BigDecimal.valueOf(n), mc);
         } else {
-            BigDecimal[][] x = new BigDecimal[3][n];
+            BigDecimal[][] x = new BigDecimal[terms][n];
             BigDecimal[] y = new BigDecimal[n];
             for (int i = 0; i < n; i++) {
                 int p = eligible[i];
                 BigDecimal v = s.regressionVariable() == RegressionVariable.SHORT_RATE ? d.rate[j][p] : d.bondValue[j][p];
                 x[0][i] = BigDecimal.ONE;
-                x[1][i] = v;
-                x[2][i] = v.multiply(v, mc);
+                if (terms > 1) x[1][i] = v;
+                if (terms > 2) x[2][i] = v.multiply(v, mc);
+                for (int k = 3; k < terms; k++) x[k][i] = x[k - 1][i].multiply(v, mc);
                 y[i] = target[p];
             }
             beta = HouseholderQrDecimal.solve(x, y, math);

@@ -143,20 +143,23 @@ public final class BackwardInductionDouble {
         int[] eligible = ts.eligible(j);
         int n = eligible.length;
         double[] beta;
-        if (n < 3) {
-            // too few paths for three coefficients: constant estimate (mean of targets, 0 if none)
+        int terms = s.basisDegree() + 1;
+        if (n < terms) {
+            // too few paths for the coefficients: constant estimate (mean of targets, 0 if none)
             double sum = 0.0;
             for (int p : eligible) sum += target[p];
-            beta = new double[]{n == 0 ? 0.0 : sum / n, 0.0, 0.0};
+            beta = new double[terms];
+            beta[0] = n == 0 ? 0.0 : sum / n;
         } else {
-            double[][] x = new double[3][n];
+            double[][] x = new double[terms][n];
             double[] y = new double[n];
             for (int i = 0; i < n; i++) {
                 int p = eligible[i];
                 double v = s.regressionVariable() == RegressionVariable.SHORT_RATE ? d.rate[j][p] : d.bondValue[j][p];
                 x[0][i] = 1.0;
-                x[1][i] = v;
-                x[2][i] = v * v;
+                if (terms > 1) x[1][i] = v;
+                if (terms > 2) x[2][i] = v * v;
+                for (int k = 3; k < terms; k++) x[k][i] = x[k - 1][i] * v;
                 y[i] = target[p];
             }
             beta = HouseholderQrDouble.solve(x, y);

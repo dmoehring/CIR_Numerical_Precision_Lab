@@ -15,7 +15,7 @@ acceptance criteria, the conventions that are fixed, the decisions still open, a
 | 4 | out-of-sample policies, paired statistics, frozen-policy control, sensitivity and precision series, CSV, run metadata | done |
 | 5 | Longstaff-Schwartz with Householder QR in both arithmetics (`1, r, r^2` or `1, B, B^2`) | done, tested |
 | 6 | JMH benchmarks, portfolio (independent vs shared simulation), allocation/peak-heap figures, path-parallel simulation | first version done; thread-scaling series and larger portfolios open |
-| 7 | Jamshidian (done), FD Bermudan reference (done), alternative zero-bond evaluation form (done), Kahan control (done); open: high-precision noncentral chi-square, Milstein/exact scheme, trapezoidal rule, hybrid double-simulation/BigDecimal-aggregation, Java 8/21/25 + StrictMath comparison, HTML report | partly done |
+| 7 | Jamshidian (done), FD Bermudan reference (done; sinh grid + kink smoothing, clean 2nd order), quadrature Bermudan reference with exact transition law (done, ~1e-14), alternative zero-bond evaluation form (done), Kahan control (done); open: high-precision noncentral chi-square, Milstein/exact scheme, trapezoidal rule, hybrid double-simulation/BigDecimal-aggregation, Java 8/21/25 + StrictMath comparison, HTML report | partly done |
 
 ## Acceptance criteria for the MVP (all met)
 
@@ -51,13 +51,20 @@ acceptance criteria, the conventions that are fixed, the decisions still open, a
    straightforward implementation does. `LOG1P_RATIO` reduces the double error of the exercise values ~3x. Should
    the stable form become the default (and the textbook form a documented control)?
 2. **Default estimation set** for LSM: `ALL` (uniform with clusters) vs `IN_THE_MONEY` (literature standard).
-3. **Cluster count rule**, e.g. `K = clamp(sqrt(n)/4, 5, 50)` vs fixed K; the cluster-count series shows the
+   Data now (RESULTS 6b): ALL better up to 500 paths, equal at 1 000-2 000, ITM clearly better from 4 000 paths (loss 3.6e-5 vs 1.5e-4
+   at 16 000).
+3. **Cluster count rule**, e.g. `K = clamp(sqrt(n)/4, 5, 50)` vs fixed K (RESULTS 6b: best K grows with N, 5 -> 10;
+   20/40 worse at every N up to 16 000; fixed K does not converge); the cluster-count series shows the
    bias/variance trade-off.
 4. Whether low-precision BigDecimal runs (8-12 digits) should stay in the standard precision series as a
    constructed stress test for discrete amplification (they are clearly marked as artificial).
 5. Scaling of the LSM basis (`B` centred/scaled) - currently deliberately unscaled.
 6. Portfolio and thread grid for the larger performance study (phase 6) and whether a Java-8-compatible core module
    is wanted for the Java 8/21/25 comparison.
+7. **Clean cluster-vs-LSM comparison** - done (`methodstudy`, RESULTS 6b). Possible follow-ups: piecewise-linear
+   cluster estimates or local regression within clusters (removes the piecewise-constant bias), an N-dependent
+   K rule, a second model (Hull-White) or a second contract as robustness check, two-factor models where the
+   methods differ more.
 
 ## Where the double-vs-BigDecimal comparison is methodologically weak
 

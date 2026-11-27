@@ -59,4 +59,26 @@ public final class ReferenceValues {
             {4.0, 101.0, 0.15993003618509105, 0.02640683515575517},
             {1.0, 110.0, 0.0, Double.NaN},
     };
+
+    /** x, k, lambda -> noncentral chi-square density (mpmath 40 digits, Bessel form; binary double inputs). */
+    public static final double[][] NONCENTRAL_CHI2_DENSITY = {
+            {1.0, 2.0, 1.0, 0.23287980379682021825d},
+            {5.0, 3.2, 4.0, 0.096689998103585278295d},
+            {17.0, 8.0, 9.2, 0.054411201308565323701d},
+            {40.0, 16.0, 30.0, 0.031801615129597125746d},
+            {300.0, 8.0, 307.0, 0.010684481699042825632d},
+            {1000.0, 4.0, 900.0, 0.0018289003228410397668d},
+            {12000.0, 3.2, 12500.0, 0.00013884402875246326653d},
+            {0.5, 0.8, 2.0, 0.2496730929360253678d},
+            {3.0, 8.0, 0.0, 0.062755357541745889387d},
+            {0.01, 8.0, 5.0, 8.5344951558291993841e-10d},
+            {180.0, 8.0, 10.0, 3.0991583912311196799e-23d},
+    };
+
+    /**
+     * Bermudan call of the standard case (5y annual 4% bond on 100, K = 100, exercise 1..4) by 30-digit quadrature
+     * against the exact forward-measure transition law ({@code validation/bermudan_quadrature.py}, output in
+     * {@code validation/bermudan_quadrature.out}).
+     */
+    public static final String BERMUDAN_STANDARD = "1.863360421058401498799293";
 }
