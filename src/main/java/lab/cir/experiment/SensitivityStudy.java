@@ -19,6 +19,7 @@ import java.util.Map;
  * (no Cartesian product). For {@code decimal.precision} series the BigDecimal prices are additionally compared with
  * the run of the highest precision (algorithm reference of the same method).
  * For {@code simulation.stepsPerYear} with {@code simulation.couplingBase} set, {@code normalsPerStep = base / steps}.
+ * A key of the form {@code a+b} sets several keys to the same value.
  */
 public final class SensitivityStudy {
 
@@ -29,7 +30,7 @@ public final class SensitivityStudy {
     }
 
     public static void run(ExperimentConfig cfg, String key, List<String> values, PrintStream out) throws IOException {
-        String id = RunMetadata.newExperimentId("sensitivity-" + key, cfg.label);
+        String id = RunMetadata.newExperimentId("sensitivity-" + key.replace('+', '_'), cfg.label);
         out.println("== Sensitivity series on " + key + " = " + values + "  id=" + id);
         out.println("   all prices out-of-sample unless stated; Delta = V_dec - V_dbl (exact decimal difference)");
         out.printf("   %-8s %-10s %14s %10s %11s %11s %9s %11s %8s %8s %11s %10s %10s %7s%n", "value", "method", "V double",
@@ -37,7 +38,10 @@ public final class SensitivityStudy {
         List<Row> rows = new ArrayList<>();
         String base = cfg.get("simulation.couplingBase");
         for (String v : values) {
-            ExperimentConfig c = cfg.with(key, v.trim());
+            ExperimentConfig c = cfg;
+            for (String k : key.split("\\+")) {
+                c = c.with(k.trim(), v.trim()); // "a+b" sets several keys to the same value (e.g. training and valuation paths)
+            }
             if (key.equals("simulation.stepsPerYear") && base != null) {
                 int b = Integer.parseInt(base.trim());
                 int spy = Integer.parseInt(v.trim());
