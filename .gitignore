@@ -1,0 +1,9 @@
+target/
+results/
+*.class
+.idea/
+*.iml
+.vscode/
+*:Zone.Identifier
+validation/.venv/
+__pycache__/
